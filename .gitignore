@@ -9,7 +9,7 @@ wheels/
 # Virtual environments
 .venv
 
-*.json
+buildblogmarathonblr.json
 
 *env
 .env
