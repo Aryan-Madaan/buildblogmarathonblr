@@ -3,6 +3,34 @@ import json
 from google.adk.tools import FunctionTool
 from custom_types import *
 
+from google.adk.tools.google_maps_grounding_tool import GoogleMapsGroundingTool
+from custom_types import *
+
+# IMPORTANT: For these tools to work, you must:
+# 1. Enable "Google Maps Platform" and "Google Flights API" in your Google Cloud project. [11]
+# 2. Ensure your environment is authenticated (e.g., by running `gcloud auth application-default login`).
+# 3. An API key might be required, which can be set via an environment variable:
+#    export GOOGLE_API_KEY="YOUR_API_KEY"
+
+# --- Grounded Tools (Official ADK) ---
+# The ADK automatically handles the API calls, responses, and error handling.
+google_maps_tool = GoogleMapsGroundingTool()
+
+def query_flights_api(origin: str, destination: str, date: str) -> dict:
+    """
+    Searches for flights using a third-party API.
+    This is a placeholder. You must implement the actual API call here.
+    """
+    print(f"[Tool Call] FAKE FLIGHTS API: Searching {origin} to {destination} on {date}")
+    # In a real implementation, you would make an HTTP request to your chosen API provider
+    # and parse the JSON response.
+    return {
+        "flight_options": [
+            {"airline": "Avianca", "price": 350, "duration": "5h 30m", "stops": 1},
+            {"airline": "LATAM", "price": 420, "duration": "4h 15m", "stops": 0},
+        ]
+    }
+
 # --- Proprietary Data Tools (MCP) ---
 
 def fetch_preference_vector(user_id: str) -> Dict[str, float]:
@@ -43,3 +71,7 @@ TPA_tools = [FunctionTool(fetch_preference_vector)]
 CDA_tools = [FunctionTool(check_visa_requirements)]
 IPA_tools = [FunctionTool(query_verified_ugc)]
 MTA_tools = [FunctionTool(query_multimodal_routes)]
+
+Discovery_tools = [google_maps_tool]
+# The Transport Agent uses our custom flights tool and the maps tool.
+Transport_tools = [FunctionTool(query_flights_api), google_maps_tool]

@@ -1,29 +1,41 @@
 # agents.py
-from google.adk.agents import LlmAgent, SequentialAgent, ParallelAgent, CustomAgent
-from google.adk.context import InvocationContext
+from google.adk.agents import LlmAgent, SequentialAgent, ParallelAgent, BaseAgent
+from google.adk.agents import InvocationContext
 from custom_types import TripContext, ComplianceResult, ItinerarySegment
+from google.adk.agents import LlmAgent, SequentialAgent, ParallelAgent, BaseAgent
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.events import Event
 from tools import TPA_tools, CDA_tools, IPA_tools, MTA_tools
+from typing import AsyncGenerator
+
+from google.genai import types
+
+from tools import fetch_preference_vector
+
 
 # --- 1. Custom Agent: Traveler Profile Agent (TPA) ---
 # TPA needs full control over state and database interactions.
 
-class TravelerProfileAgent(CustomAgent):
+class TravelerProfileAgent(BaseAgent):
+    """A custom agent to fetch profiles for all trip members."""
     def __init__(self, **kwargs):
-        super().__init__(name="TravelerProfileAgent", description="Manages user PII, profile, and preference modeling.", **kwargs)
-        self.tools = TPA_tools # Assign toolset
+        super().__init__(name="TravelerProfileAgent", **kwargs)
 
-    async def execute(self, context: InvocationContext) -> TripContext:
-        trip_context: TripContext = context.state.get("trip_context")
+    async def _run_async_impl(self, context: InvocationContext) -> AsyncGenerator[Event, None]:
+        trip_context = TripContext(**context.session.state.get("trip_context", {}))
+        # tool = self.tools.get_tool("fetch_preference_vector")
+        
+        updated = False
+        for user_id in trip_context.group_members:
+            if user_id not in trip_context.user_preferences:
+                print(f"[TPA] New user detected: {user_id}. Fetching profile.")
+                preference_vector = fetch_preference_vector(user_id=user_id)
+                trip_context.user_preferences[user_id] = preference_vector
+                updated = True
 
-        # 1. Fetch Preference Vector using Tool
-        preference_vector = self.tools[0].execute(user_id=trip_context.user_id)
-        
-        # 2. Update Shared State
-        trip_context.preference_vector = preference_vector
-        context.state["trip_context"] = trip_context
-        
-        print(f"[TPA] Profile complete. Preference Vector: {preference_vector}")
-        return trip_context
+        context.session.state["trip_context"] = trip_context.model_dump()
+        yield Event(author=self.name, content=types.Content(parts=[types.Part(text="User profiles updated.")]))
+
 
 # --- 2. Sequential Agent: Compliance & Documentation Agent (CDA) ---
 # Enforces a strict pipeline (Passport Check -> Visa Check -> Insurance Check).
@@ -55,6 +67,31 @@ def create_cda_workflow():
         description="Legal Brain: Executes compliance checks in sequence.",
         sub_agents=[visa_agent, insurance_agent]
     )
+
+
+# --- 2. Personalization Agent (NEW) ---
+PersonalizationAgent = LlmAgent(
+    name="PersonalizationAgent",
+    model="gemini-2.5-flash",
+    instruction="""
+    Analyze the 'user_preferences' in the TripContext state.
+    Calculate a single 'group_preference_vector' that represents the group's collective interests by averaging the scores.
+    Update the TripContext with this new vector.
+    """,
+)
+
+# --- 3. Place Discovery Agent (With REAL Maps Grounding) ---
+PlaceDiscoveryAgent = LlmAgent(
+    name="PlaceDiscoveryAgent",
+    model="gemini-2.5-pro",
+    instruction="""
+    You are a travel discovery expert.
+    1. Look at the 'destination' and 'group_preference_vector' in the TripContext.
+    2. Formulate a search query based on the top preferences (e.g., "art museums and nature parks near Zurich, Switzerland").
+    3. Use the `google_maps_tool.search_places` function with your query.
+    4. Store the list of discovered places in the 'discovered_pois' field in the TripContext.
+    """,
+)
 
 # --- 3. LLM Agent: Itinerary Planning Agent (IPA) ---
 # Core planner using grounding data (BigQuery via tool).
@@ -108,3 +145,29 @@ def create_mta_workflow():
         description="Logistics Solver: Finds and compares all transport modes simultaneously.",
         sub_agents=[segment_agent, logistics_agent]
     )
+
+TransportAgent = LlmAgent(
+    name="TransportAgent",
+    model="gemini-2.5-flash",
+    instruction="""
+    You are a logistics planner.
+    1. Identify the origin/destination cities and dates from the TripContext.
+    2. Use the `query_flights_api` tool to search for flight options.
+    3. Analyze the results based on the 'group_preference_vector' (price vs. duration).
+    4. Update the 'transport_options' in the TripContext with your findings.
+    """,
+)
+
+
+RootOrchestrationAgent = SequentialAgent(
+    name="RootOrchestrationAgent",
+    description="Manages the full trip planning pipeline with real-world grounding.",
+    sub_agents=[
+        TravelerProfileAgent(),
+        PersonalizationAgent,
+        PlaceDiscoveryAgent,
+        itinerary_planning_agent,
+        TransportAgent
+    ],
+    # instruction="Summarize the key outcomes: discovered places, itinerary highlights, and the recommended transport choice. Present this as your final answer."
+)

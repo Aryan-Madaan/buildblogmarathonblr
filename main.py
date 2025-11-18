@@ -1,67 +1,101 @@
 # main.py
-from google.adk.agents import SequentialAgent, LlmAgent
-from google.adk.context import InvocationContext
-from agent import TravelerProfileAgent, create_cda_workflow, itinerary_planning_agent, create_mta_workflow
-from types import TripContext
+import uuid
+import os
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List
+import json
 
-# --- Instantiate Specialized Agents ---
-TPA = TravelerProfileAgent()
-CDA = create_cda_workflow()
-MTA = create_mta_workflow()
+from dotenv import load_dotenv
+load_dotenv()
 
-# --- 5. Root Orchestration Agent (Sequential Workflow) ---
-# Defines the end-to-end process: Profile -> Compliance -> Planning -> Logistics.
+import uvicorn
 
-RootOrchestrationAgent = SequentialAgent(
-    name="RootOrchestrationAgent",
-    description="Central Router for the Safar Saarthi platform. Manages the full trip planning pipeline.",
-    sub_agents=[
-        TPA,                                  # Step 1: Get Profile Vector
-        CDA,                                  # Step 2: Check Compliance & Risk
-        itinerary_planning_agent,             # Step 3: Generate Grounded Itinerary
-        MTA                                   # Step 4: Plan Multimodal Logistics
-    ]
-)
+# Correct imports for the ADK runtime and tools
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService, Session
+from google.genai import types as genai_types
 
-# --- Execution Simulation ---
+# Import your agent and tools from other files
+from agent import RootOrchestrationAgent
+from custom_types import TripContext
+from tools import TPA_tools, CDA_tools, Discovery_tools, Transport_tools
 
-def run_trip_planner(user_request: str, user_id: str, destination: str):
-    """Simulates the start of the ADK session."""
-    print("--- SAFAR SAARTHI: AGENT PIPELINE START ---")
-    
-    # Initialize the shared state (TripContext)
+# --- 0. Environment Setup ---
+# UNCOMMENT AND SET YOUR KEY. For Google Maps to work.
+# os.environ["GOOGLE_API_KEY"] = "YOUR_GOOGLE_API_KEY"
+if not os.getenv("GOOGLE_API_KEY"):
+    print("WARNING: GOOGLE_API_KEY environment variable not set. Google Maps tool will fail.")
+
+# --- 1. Initialize Core ADK Components ---
+APP_NAME = "SafarSaarthi"
+session_service = InMemorySessionService()
+
+# --- 2. Initialize FastAPI ---
+app = FastAPI(title="Safar Saarthi Agent API", description="Trip planner using Google ADK")
+
+# --- 3. API Models ---
+class CreateSessionRequest(BaseModel):
+    user_ids: List[str]
+    destination: str
+    travel_dates: List[str]
+
+class ChatRequest(BaseModel):
+    user_request: str
+    user_id:str
+
+class ChatResponse(BaseModel):
+    reply: str
+    session_id: str
+    final_context: TripContext
+
+# --- 4. FastAPI Endpoints ---
+@app.post("/sessions", summary="Create a new trip session")
+async def create_session(request: CreateSessionRequest):
+    """Initializes a new trip planning session."""
+    session_id = str(uuid.uuid4())
     initial_context = TripContext(
-        user_id=user_id,
-        trip_id="TRIP-001",
-        destination=destination,
-        travel_dates=["2026-03-10", "2026-03-15"],
-        group_members=["User1", "User2"]
+        user_id=request.user_ids[0],
+        group_members=request.user_ids,
+        trip_id=f"TRIP-{session_id[:8]}",
+        destination=request.destination,
+        travel_dates=request.travel_dates,
     )
-    
-    # Create the ADK Invocation Context and set the initial state
-    context = InvocationContext(
-        input_message=user_request,
-        state={"trip_context": initial_context}
+    await session_service.create_session(
+        app_name=APP_NAME,
+        user_id=request.user_ids[0],
+        session_id=session_id,
+        state={"trip_context": initial_context.model_dump()}
     )
+    return {"message": "Session created.", "session_id": session_id}
 
-    # Execute the sequential workflow
-    final_context = RootOrchestrationAgent.execute(context)
+@app.post("/sessions/{session_id}/chat", response_model=ChatResponse)
+async def chat(session_id: str, request: ChatRequest):
+    """Runs the full RootOrchestrationAgent workflow."""
+    session = await session_service.get_session(user_id=request.user_id,app_name=APP_NAME,session_id=session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    final_reply = "Agent execution finished without a final summary."
+    try:
+        runner = Runner(app_name=APP_NAME,agent=RootOrchestrationAgent,session_service=session_service)
+
+
+        async for event in runner.run_async(user_id=request.user_id,session_id=session_id,new_message=genai_types.Content(parts=[genai_types.Part(text=request.user_request)])):
+            if event.is_final_response() and event.content and event.content.parts:
+                final_reply = event.content.parts[0].text
+
+        updated_session = await session_service.get_session(session_id)
+        final_trip_context = TripContext(**updated_session.state.get("trip_context", {}))
+
+        return ChatResponse(
+            reply=final_reply,
+            session_id=session_id,
+            final_context=final_trip_context
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
     
-    print("\n--- AGENT PIPELINE COMPLETE ---")
-    print(f"Compliance Status: {final_context.compliance_status}")
-    print(f"Itinerary Generated: {len(final_context.base_itinerary)} segments")
-    print(f"Logistics Planned (Best Pick): {final_context.transport_options['train']['justification']}")
 
-# Example of a user query kicking off the complex flow:
-run_trip_planner(
-    user_request="Plan a 5-day nature trip to the Schengen Area. I prioritize unique experiences and comfort over budget.",
-    user_id="alice_adk",
-    destination="Schengen Area (focus on Switzerland)"
-)
-
-# Expected Output Flow:
-# 1. [TPA] Fetches preference vector (high nature/comfort, low budget). Updates state.
-# 2. [CDA] Sequential run starts: VisaCheckAgent flags 'REQUIREMENT'. InsuranceRiskAgent flags 'insurance_required=True'. Updates state.
-# 3. [IPA] Uses the updated state (preferences) to query BigQuery and generates a grounded itinerary with AI justification. Updates state.
-# 4. [MTA] Parallel run starts: SegmentTransportAgent simultaneously queries flights and trains, recommending the Train ('Best for high 'comfort' score'). LocalLogisticsAgent plans individual local transport. Updates state.
-# 5. [Root] Gathers results and presents the final, complex output.
+if __name__== "__main__":
+    uvicorn.run(app,host="0.0.0.0",port=8000)
