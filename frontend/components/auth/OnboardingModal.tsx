@@ -3,17 +3,15 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
 export const OnboardingModal = () => {
-  const { completeOnboarding } = useAuth();
-  const [name, setName] = useState('');
+  const { user, completeOnboarding } = useAuth();
   const [age, setAge] = useState('');
   const [location, setLocation] = useState('');
   const [hasPassport, setHasPassport] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && age && location) {
+    if (age && location) {
       completeOnboarding({
-        name,
         age: parseInt(age, 10),
         location,
         hasPassport,
@@ -24,19 +22,17 @@ export const OnboardingModal = () => {
   return (
     <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/80 flex items-center justify-center z-50 backdrop-blur-sm">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md m-4 transform transition-all duration-300 scale-95 animate-fade-in">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome!</h2>
-        <p className="text-gray-500 dark:text-gray-400 mb-6">Let's get to know you a little better to personalize your plans.</p>
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Just a few more details...</h2>
+        <p className="text-gray-500 dark:text-gray-400 mb-6">Welcome, {user?.name}! Let's complete your profile to personalize your plans.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">What should we call you?</label>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
             <input
               type="text"
               id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-              placeholder="e.g., Alex"
+              value={user?.name || ''}
+              disabled
+              className="mt-1 block w-full bg-gray-200 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 text-gray-500 dark:text-gray-400"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -49,7 +45,7 @@ export const OnboardingModal = () => {
                 onChange={(e) => setAge(e.target.value)}
                 required
                 className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="28"
+                placeholder="e.g., 28"
               />
             </div>
             <div>
@@ -61,7 +57,7 @@ export const OnboardingModal = () => {
                 onChange={(e) => setLocation(e.target.value)}
                 required
                 className="mt-1 block w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="New York"
+                placeholder="e.g., New York"
               />
             </div>
           </div>
@@ -75,7 +71,7 @@ export const OnboardingModal = () => {
           <button
             type="submit"
             className="w-full mt-4 bg-teal-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-teal-700 transition-colors duration-300 disabled:bg-gray-400 dark:disabled:bg-gray-500"
-            disabled={!name || !age || !location}
+            disabled={!age || !location}
           >
             Let's Start Planning!
           </button>

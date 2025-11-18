@@ -31,7 +31,10 @@ export const ChatWindow = () => {
   }, [user, activeTrip, addMessageToActiveTrip]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Use a timeout to ensure the scroll happens after the new message is rendered
+    setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   }, [activeTrip?.messages]);
 
   const handleSend = async (text: string) => {
@@ -64,7 +67,7 @@ export const ChatWindow = () => {
             {activeTrip.messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
-            {isLoading && (
+            {isLoading && activeTrip.messages[activeTrip.messages.length - 1]?.author === 'user' && (
               <MessageBubble message={{ id: 'loading', author: 'ai', content: '...', authorName: 'Safar', authorAvatar: `https://api.dicebear.com/8.x/bottts/svg?seed=Safar` }} />
             )}
           </div>

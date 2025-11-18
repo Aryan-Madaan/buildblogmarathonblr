@@ -1,5 +1,7 @@
 
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Message } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 
@@ -20,6 +22,8 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
     );
   }
 
+  const contentWithoutActions = message.content.replace(/\[BOOK_.*?:"(.*?)"]/g, '');
+
   return (
     <div className={`flex items-start gap-3 my-4 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
       {!isCurrentUser && (
@@ -33,7 +37,11 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
               : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg'
           }`}
         >
-          <p className="text-sm whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: message.content.replace(/\[BOOK_.*?:"(.*?)"]/g, '') }}></p>
+          <div className="prose prose-sm dark:prose-invert prose-p:my-1 prose-ul:my-2 prose-li:my-0">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {contentWithoutActions}
+            </ReactMarkdown>
+          </div>
         </div>
         <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{message.authorName}</span>
       </div>

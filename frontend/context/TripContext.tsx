@@ -54,7 +54,6 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
     };
     setTrips(prev => [newTrip, ...prev]);
     setActiveTripId(newTrip.id);
-    // Log analytics event
     analytics.logTripCreationEvent(newTrip, user);
   }, [user]);
 
@@ -84,6 +83,7 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
         newMessages[existingIndex] = message;
     } else {
         newMessages = [...currentTrip.messages, message];
+        analytics.logChatMessage(message, activeTripId);
     }
     updateTrip(activeTripId, { messages: newMessages });
   }, [activeTripId, trips, updateTrip]);

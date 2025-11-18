@@ -1,5 +1,6 @@
 
 import React, { useEffect } from 'react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TripProvider, useTripContext } from './context/TripContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -7,6 +8,7 @@ import { LoginPage } from './components/auth/LoginPage';
 import { OnboardingModal } from './components/auth/OnboardingModal';
 import { PlannerDashboard } from './components/planner/PlannerDashboard';
 import { TripSelectionPage } from './components/planner/TripSelectionPage';
+import { GOOGLE_CLIENT_ID } from './config';
 
 const AppContent = () => {
   const { isAuthenticated, isOnboardingComplete, user } = useAuth();
@@ -47,12 +49,14 @@ const AppContent = () => {
 
 export const App = () => {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <TripProvider>
-          <AppContent />
-        </TripProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <ThemeProvider>
+        <AuthProvider>
+          <TripProvider>
+            <AppContent />
+          </TripProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </GoogleOAuthProvider>
   );
 };
