@@ -11,4 +11,5 @@ wheels/
 
 *.json
 
+*env
 .env
