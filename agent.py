@@ -33,7 +33,11 @@ def create_cda_workflow():
     visa_agent = LlmAgent(
         name="VisaCheckAgent",
         model="gemini-2.5-flash",
-        instruction="Use the check_visa_requirements tool to determine entry compliance for the destination. Output structured ComplianceResult.",
+        instruction="""Your goal is to determine visa entry compliance for a given destination using the provided tools.
+        Specifically, you must utilize the `check_visa_requirements` tool.
+        Analyze the output from `check_visa_requirements` and structure your final response as a `ComplianceResult`.
+        The `ComplianceResult` should clearly indicate whether the traveler meets the entry requirements and any relevant details or next steps.
+        Focus on accuracy and clarity in presenting the compliance status.""",
         tools=CDA_tools
     )
     
@@ -42,7 +46,7 @@ def create_cda_workflow():
     insurance_agent = LlmAgent(
         name="InsuranceRiskAgent",
         model="gemini-2.5-flash",
-        instruction="Based on the ComplianceResult from the previous step and the overall TripContext, determine if high-risk insurance is needed. Set the 'insurance_required' flag in the TripContext state. Flag if destination is high-risk or Visa deadline is short.",
+        instruction="Your task is to evaluate the need for high-risk insurance based on the provided `ComplianceResult` and the complete `TripContext`. Analyze the `ComplianceResult` to understand visa compliance and any associated complexities. Additionally, review the `TripContext` for destination-specific risk factors and the proximity of the visa application deadline. Set the `insurance_required` flag within the `TripContext` state to `True` if the destination is identified as high-risk or if the visa application deadline is critically short, indicating potential issues. Otherwise, set it to `False`. Your assessment should be thorough and directly update the `TripContext` state.",
     )
 
     # Workflow Agent: Enforces the necessary order.
@@ -90,8 +94,11 @@ def create_mta_workflow():
         name="LocalLogisticsAgent",
         model="gemini-2.5-flash",
         instruction="""
-        For each group member in 'group_members', calculate individual first/last-mile options (rental vs. cab/ride-share) based on their individual 'departure_location' and the 'budget' preference score. 
-        Update the 'transport_options' with these personalized suggestions.
+        Your core responsibility is to meticulously plan personalized first and last-mile transportation for each individual within the 'group_members' list. 
+        For every group member, you must assess their 'departure_location' and cross-reference it with their 'budget' preference score. 
+        Based on this analysis, determine the most suitable individual transport options, specifically choosing between a rental car (implying self-drive or group rental if applicable) and cab/ride-share services. 
+        Your output should enrich the 'transport_options' field within the overall TripContext by appending these personalized, calculated suggestions for each group member, ensuring the recommendations align with their specified budget constraints and individual logistical needs. 
+        Provide clear reasoning for the chosen option (e.g., "rental recommended due to remote departure and good budget score" or "ride-share suggested for urban departure and tight budget").
         """,
     )
 
