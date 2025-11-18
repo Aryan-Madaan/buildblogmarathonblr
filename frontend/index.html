@@ -43,6 +43,18 @@
         .dark ::-webkit-scrollbar-thumb:hover {
             background: #4b5563; /* gray-600 */
         }
+        /* Basic styling for markdown content */
+        .prose ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+        }
+        .prose li {
+            margin-top: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+        .prose strong {
+            font-weight: 600;
+        }
     </style>
     <!-- 
       User-provided Google Maps API Key has been added.
@@ -65,7 +77,11 @@
         "imports": {
             "react": "https://esm.sh/react@18.3.1",
             "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-            "@google/genai": "https://esm.sh/@google/genai@0.14.0"
+            "@google/genai": "https://esm.sh/@google/genai@0.14.0",
+            "react-markdown": "https://esm.sh/react-markdown@9.0.1",
+            "remark-gfm": "https://esm.sh/remark-gfm@4.0.0",
+            "@react-oauth/google": "https://esm.sh/@react-oauth/google@0.12.1",
+            "jwt-decode": "https://esm.sh/jwt-decode@4.0.0"
         }
     }
     </script>

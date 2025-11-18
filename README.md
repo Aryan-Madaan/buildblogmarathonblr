@@ -1,81 +1,105 @@
-# **✈️ Safar Sar: A Multi-Agent AI Trip Planner**
 
-Safar Sar is a modern travel platform that solves the complexity of group trip planning. It uses a **Hierarchical Multi-Agent System (MAS)** built on the **Google Agent Development Kit (ADK)** to coordinate varied budgets, departure locations, and logistics in real-time.
+# Safar Sar - AI Trip Planner
 
-This repository contains the source code for the Safar Sar platform, as detailed in the accompanying [technical blog post](https://www.google.com/search?q=link-to-your-blog-post).
+This is a React-based AI trip planner application designed to be deployed on Google Cloud Run.
 
-## **🏛️ Architecture Overview**
+## Prerequisites
 
-The system is designed around five specialized, modular agents that collaborate via a **Root Orchestration Agent**. This microservice-based architecture ensures that each complex task is handled by a specialized expert.
+1.  **Google Cloud SDK:** Make sure you have the `gcloud` CLI installed and authenticated.
+2.  **Google Cloud Project:** A Google Cloud project with billing enabled.
+3.  **Enabled APIs:** Ensure the following APIs are enabled in your project:
+    *   Cloud Build API (`serviceusage.googleapis.com`)
+    *   Cloud Run API (`run.googleapis.com`)
+    *   Artifact Registry API (`artifactregistry.googleapis.com`)
+    *   Secret Manager API (`secretmanager.googleapis.com`)
 
-* **Root Orchestration Agent:** Manages user intent (Chat, Edit, Book, Plan) and routes tasks.  
-* **Itinerary Planning Agent (IPA):** Generates itineraries using a **grounded** model (connected to a BigQuery data source) to prevent hallucinations.  
-* **Multimodal Transport Agent (MTA):** A ParallelAgent that simultaneously queries flight, train, and car rental APIs for each group member.  
-* **Human-in-the-Loop (HITL) Agent:** Manages the UI and real-time group edits via Firestore.  
-* **Compliance & Documentation Agent (CDA):** Handles visa, passport, and travel advisories.
+## Deployment Steps
 
-## **🛠️ Tech Stack**
+### 1. Set Up Environment Variables
 
-* **AI / Agents:** Google Agent Development Kit (ADK), Gemini  
-* **Backend:** Node.js  
-* **Deployment:** Google Cloud Run (as independent serverless microservices)  
-* **Database:** Cloud Firestore (as the real-time single source of truth)  
-* **Data Warehouse:** Google BigQuery (for grounding the IPA)  
-* **APIs:** Google Flights API, various Train APIs
+In your local terminal, set the following environment variables:
 
-## **🚀 Getting Started (Local Development)**
+```bash
+export PROJECT_ID="your-gcp-project-id"
+export REGION="us-central1" # Or your preferred region
+export GEMINI_API_KEY="your-gemini-api-key" # Your actual Gemini API Key
+```
 
-Follow these instructions to get a local development server running.
+### 2. Create a Secret in Secret Manager
 
-**Note:** The production architecture deploys each agent as an independent microservice on Google Cloud Run. This local setup runs the core application for development and testing.
+We will store the Gemini API key securely in Secret Manager.
 
-### **1\. Prerequisites**
+```bash
+# Create the secret
+gcloud secrets create GEMINI_API_KEY --replication-policy="automatic"
 
-* Node.js (v18.x or later)  
-* npm  
-* A Google Cloud Platform (GCP) project with **Billing enabled**.  
-* APIs Enabled: Cloud Run, Firestore, BigQuery.  
-* A configured .env file (see step 3).
+# Add the first version of the secret
+echo -n "${GEMINI_API_KEY}" | gcloud secrets versions add GEMINI_API_KEY --data-file=-
+```
 
-### **2\. Clone the Repository**
+### 3. Grant Cloud Build Access to the Secret
 
-Bash
+The Cloud Build service account needs permission to access the secret during the build process.
 
-git clone https://github.com/your-username/safar-sar.git  
-cd safar-sar
+```bash
+# Get your project number
+PROJECT_NUMBER=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')
 
-### **3\. Install Dependencies**
+# Grant the Secret Accessor role to the Cloud Build service account
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
 
-Bash
+### 4. Create an Artifact Registry Repository
 
-npm i
+This is where your Docker container images will be stored.
 
-### **4\. Configure Environment**
+```bash
+gcloud artifacts repositories create safar-sar-repo \
+  --repository-format=docker \
+  --location=${REGION} \
+  --description="Docker repository for Safar Sar application"
+```
 
-Before running, you must set up your environment. This project relies heavily on Google Cloud services.
+### 5. Submit the Build to Cloud Build
 
-* Create a .env file in the root directory (cp .env.example .env).  
-* Add your credentials for:  
-  * Google Cloud (Project ID, Service Account key)  
-  * Cloud Firestore configuration  
-  * BigQuery dataset and table names  
-  * Any external travel API keys (e.g., Google Flights)
+This command reads the `cloudbuild.yaml` file, builds the Docker image, and pushes it to your Artifact Registry.
 
-### **5\. Run the Application**
+```bash
+gcloud builds submit . --config=cloudbuild.yaml
+```
 
-Bash
+### 6. Deploy to Cloud Run
 
-npm run start
+Deploy the container image from Artifact Registry to Cloud Run.
 
-### **6\. View in Browser**
+```bash
+gcloud run deploy safar-sar-app \
+  --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/safar-sar-repo/safar-sar-app:latest" \
+  --platform="managed" \
+  --region="${REGION}" \
+  --allow-unauthenticated \
+  --port=80
+```
 
-Once the server is running, navigate to:
+After the command completes, it will provide a URL where your application is live.
 
-http://localhost:3000
+## Local Development
 
----
+1.  **Install Dependencies:**
+    ```bash
+    npm install
+    ```
 
-## **🔮 Future Work**
+2.  **Create Environment File:**
+    Create a file named `.env` in the root of the project and add your API key:
+    ```
+    VITE_API_KEY=your-gemini-api-key
+    ```
 
-* Integrate a **Traveler Profile Agent (TPA)** to refine a Preference Vector based on booking history.  
-* Extend the **Multimodal Combination Planner (MCP)** to optimize for carbon footprint.
+3.  **Run the Development Server:**
+    ```bash
+    npm run dev
+    ```
+    The application will be available at `http://localhost:3000`.

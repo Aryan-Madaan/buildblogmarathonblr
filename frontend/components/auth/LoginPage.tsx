@@ -5,7 +5,7 @@ import { GoogleIcon } from '../ui/Icons';
 import { Logo } from '../ui/Logo';
 
 export const LoginPage = () => {
-  const { login } = useAuth();
+  const { login, authStatus } = useAuth();
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white overflow-hidden p-4">
@@ -22,27 +22,13 @@ export const LoginPage = () => {
             <h2 className="text-2xl font-bold text-white mb-6">Plan your next adventure</h2>
             
             <button
-              onClick={login}
-              className="w-full mb-4 group relative flex items-center justify-center gap-3 px-6 py-3 bg-white text-gray-800 font-semibold rounded-lg shadow-lg overflow-hidden transition-all duration-300 transform hover:scale-105"
-              aria-label="Sign up with Google"
-            >
-              <GoogleIcon />
-              Sign Up with Google
-            </button>
-
-            <div className="my-4 flex items-center">
-                <div className="flex-grow border-t border-gray-600"></div>
-                <span className="flex-shrink mx-4 text-gray-400 text-sm">OR</span>
-                <div className="flex-grow border-t border-gray-600"></div>
-            </div>
-
-            <button
-              onClick={login}
-              className="w-full group relative flex items-center justify-center gap-3 px-6 py-3 bg-gray-700 text-white font-semibold rounded-lg shadow-lg overflow-hidden transition-all duration-300 transform hover:scale-105"
+              onClick={() => login()}
+              disabled={authStatus === 'loading'}
+              className="w-full group relative flex items-center justify-center gap-3 px-6 py-3 bg-white text-gray-800 font-semibold rounded-lg shadow-lg overflow-hidden transition-all duration-300 transform hover:scale-105 disabled:opacity-50"
               aria-label="Sign in with Google"
             >
               <GoogleIcon />
-              Sign In with Google
+              Sign in with Google
             </button>
         </div>
       </div>
